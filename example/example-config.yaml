@@ -1,0 +1,7 @@
+apiVersion: config.example.com/v1alpha1
+kind: Config
+metadata:
+  name: test
+  namespace: default
+spec:
+  config: test
