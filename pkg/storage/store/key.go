@@ -17,18 +17,17 @@ package store
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 type ResourceKey struct {
-	schema.GroupVersionKind
+	//schema.GroupVersionKind
 	types.NamespacedName
 }
 
 func (r ResourceKey) String() string {
 	if r.Namespace == "" {
-		return fmt.Sprintf("%s.%s", r.GroupVersionKind.String(), r.Name)
+		return r.Name
 	}
-	return fmt.Sprintf("%s.%s.%s", r.GroupVersionKind.String(), r.Namespace, r.Name)
+	return fmt.Sprintf("%s.%s", r.Namespace, r.Name)
 }

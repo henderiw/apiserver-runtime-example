@@ -15,8 +15,6 @@
 package memory
 
 import (
-	"sync"
-
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -27,22 +25,18 @@ func NewMemWatchers() *memWatchers {
 }
 
 type memWatchers struct {
-	m        sync.RWMutex
 	watchers map[int]*memWatch
 }
 
 type memWatch struct {
-	r  *memWatchers
-	id int
-	ch chan watch.Event
+	cancel   func()
+	resultCh chan watch.Event
 }
 
-func (w *memWatch) Stop() {
-	w.r.m.Lock()
-	defer w.r.m.Unlock()
-	delete(w.r.watchers, w.id)
+func (r *memWatch) Stop() {
+	r.cancel()
 }
 
-func (w *memWatch) ResultChan() <-chan watch.Event {
-	return w.ch
+func (r *memWatch) ResultChan() <-chan watch.Event {
+	return r.resultCh
 }

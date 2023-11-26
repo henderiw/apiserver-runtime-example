@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sync"
 
 	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store"
 	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store/memory"
@@ -50,11 +49,13 @@ var tracer = otel.Tracer("apiserver")
 func NewMemoryStorageProvider(obj resource.Object) builderrest.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, getter generic.RESTOptionsGetter) (rest.Storage, error) {
 		gr := obj.GetGroupVersionResource().GroupResource()
-		gvk := schema.GroupVersionKind{
-			Group:   obj.GetGroupVersionResource().Group,
-			Version: obj.GetGroupVersionResource().Version,
-			Kind:    obj.GetObjectKind().GroupVersionKind().Kind,
-		}
+		/*
+			gvk := schema.GroupVersionKind{
+				Group:   obj.GetGroupVersionResource().Group,
+				Version: obj.GetGroupVersionResource().Version,
+				Kind:    reflect.TypeOf(&obj).Name(),
+			}
+		*/
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
 			StorageMediaType:  runtime.ContentTypeJSON,
 			StorageSerializer: serializer.NewCodecFactory(scheme),
@@ -66,8 +67,8 @@ func NewMemoryStorageProvider(obj resource.Object) builderrest.ResourceHandlerPr
 			return nil, err
 		}
 		return NewMemoryREST(
-			gvk,
 			gr,
+			//gvk,
 			codec,
 			obj.NamespaceScoped(),
 			obj.New,
@@ -77,8 +78,8 @@ func NewMemoryStorageProvider(obj resource.Object) builderrest.ResourceHandlerPr
 }
 
 func NewMemoryREST(
-	gvk schema.GroupVersionKind,
-	groupResource schema.GroupResource,
+	gr schema.GroupResource,
+	//gvk schema.GroupVersionKind,
 	codec runtime.Codec,
 	isNamespaced bool,
 	newFunc func() runtime.Object,
@@ -86,13 +87,14 @@ func NewMemoryREST(
 ) rest.Storage {
 	return &mem{
 		store:          memory.NewStore[runtime.Object](),
-		TableConvertor: rest.NewDefaultTableConvertor(groupResource),
+		TableConvertor: rest.NewDefaultTableConvertor(gr),
 		codec:          codec,
-		gvk:            gvk,
-		isNamespaced:   isNamespaced,
-		newFunc:        newFunc,
-		newListFunc:    newListFunc,
-		watchers:       NewMemWatchers(),
+		gr:             gr,
+		//gvk:            gvk,
+		isNamespaced: isNamespaced,
+		newFunc:      newFunc,
+		newListFunc:  newListFunc,
+		watchers:     NewMemWatchers(),
 	}
 }
 
@@ -100,12 +102,12 @@ type mem struct {
 	store store.Storer[runtime.Object]
 
 	rest.TableConvertor
-	codec        runtime.Codec
-	objRootPath  string
-	gvk          schema.GroupVersionKind
+	codec runtime.Codec
+	//objRootPath  string
+	gr schema.GroupResource
+	//gvk          schema.GroupVersionKind
 	isNamespaced bool
 
-	muWatchers  sync.RWMutex
 	watchers    *memWatchers
 	newFunc     func() runtime.Object
 	newListFunc func() runtime.Object
@@ -128,22 +130,22 @@ func (r *mem) NamespaceScoped() bool {
 func (r *mem) getKey(
 	ctx context.Context,
 	name string,
-	typeMeta metav1.TypeMeta,
 ) (store.ResourceKey, error) {
 	ns, namespaced := genericapirequest.NamespaceFrom(ctx)
 	if namespaced != r.isNamespaced {
 		return store.ResourceKey{}, fmt.Errorf("namespace mismatch got %t, want %t", namespaced, r.isNamespaced)
 	}
-
-	if typeMeta.GroupVersionKind() != r.gvk {
-		return store.ResourceKey{}, fmt.Errorf("gvk mismatch got %s, want %s", typeMeta.GroupVersionKind(), r.gvk)
-	}
+	/*
+		if typeMeta.GroupVersionKind() != r.gvk {
+			return store.ResourceKey{}, fmt.Errorf("gvk mismatch got %s, want %s", typeMeta.GroupVersionKind(), r.gvk)
+		}
+	*/
 	return store.ResourceKey{
 		NamespacedName: types.NamespacedName{
 			Name:      name,
 			Namespace: ns,
 		},
-		GroupVersionKind: typeMeta.GroupVersionKind(),
+		//GroupVersionKind: r.gvk,
 	}, nil
 }
 
@@ -158,18 +160,18 @@ func (r *mem) Get(
 	defer span.End()
 
 	// logger
-	log := log.FromContext(ctx)
+	log := log.FromContext(ctx).With("name", name)
+	log.Info("get...")
 
 	// Get Key
-	key, err := r.getKey(ctx, name, options.TypeMeta)
+	key, err := r.getKey(ctx, name)
 	if err != nil {
 		return nil, apierrors.NewBadRequest(err.Error())
 	}
-	log.Info("get", "key", key.String())
 
 	obj, err := r.store.Get(ctx, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot get config from store")
+		return nil, apierrors.NewNotFound(r.gr, name)
 	}
 	return obj, nil
 }
@@ -203,7 +205,7 @@ func (r *mem) List(
 	log := log.FromContext(ctx)
 
 	// Get Key
-	key, err := r.getKey(ctx, "", options.TypeMeta)
+	key, err := r.getKey(ctx, "")
 	if err != nil {
 		return nil, apierrors.NewBadRequest(err.Error())
 	}
@@ -239,9 +241,16 @@ func (r *mem) Create(
 
 	// logger
 	log := log.FromContext(ctx)
+	log.Info("get", "ctx", ctx, "typeMeta", options.TypeMeta, "obj", runtimeObject)
+
+
+	accessor, err := meta.Accessor(runtimeObject)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get Key
-	key, err := r.getKey(ctx, "", options.TypeMeta)
+	key, err := r.getKey(ctx, accessor.GetName())
 	if err != nil {
 		return nil, apierrors.NewBadRequest(err.Error())
 	}
@@ -271,7 +280,7 @@ func (r *mem) Update(
 	log := log.FromContext(ctx)
 
 	// Get Key
-	key, err := r.getKey(ctx, name, options.TypeMeta)
+	key, err := r.getKey(ctx, name)
 	if err != nil {
 		return nil, false, apierrors.NewBadRequest(err.Error())
 	}
@@ -323,7 +332,7 @@ func (r *mem) Delete(
 	log := log.FromContext(ctx)
 
 	// Get Key
-	key, err := r.getKey(ctx, name, options.TypeMeta)
+	key, err := r.getKey(ctx, name)
 	if err != nil {
 		return nil, false, apierrors.NewBadRequest(err.Error())
 	}
@@ -331,7 +340,7 @@ func (r *mem) Delete(
 
 	obj, err := r.store.Get(ctx, key)
 	if err != nil {
-		return nil, false, apierrors.NewInternalError(err)
+		return nil, false, apierrors.NewNotFound(r.gr, name)
 	}
 
 	if err := r.store.Delete(ctx, key); err != nil {
@@ -354,9 +363,10 @@ func (r *mem) DeleteCollection(
 
 	// logger
 	log := log.FromContext(ctx)
+	log.Info("delete collection")
 
 	// Get Key
-	key, err := r.getKey(ctx, "", options.TypeMeta)
+	key, err := r.getKey(ctx, "")
 	if err != nil {
 		return nil, apierrors.NewBadRequest(err.Error())
 	}
@@ -385,7 +395,22 @@ func (r *mem) Watch(
 	ctx context.Context,
 	options *metainternalversion.ListOptions,
 ) (watch.Interface, error) {
-	return r.watchers.watchers[0], nil
+	// Start OTEL tracer
+	ctx, span := tracer.Start(ctx, "configs::Watch", trace.WithAttributes())
+	defer span.End()
+
+	// logger
+	log := log.FromContext(ctx)
+	log.Info("watch", "options", *options)
+
+	_, cancel := context.WithCancel(ctx)
+
+	w := &memWatch{
+		cancel:   cancel,
+		resultCh: make(chan watch.Event, 64),
+	}
+
+	return w, nil
 }
 
 /*

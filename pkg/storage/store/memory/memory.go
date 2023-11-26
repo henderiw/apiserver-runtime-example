@@ -59,7 +59,9 @@ func (r *mem[T1]) List(ctx context.Context, key store.ResourceKey, selectors ...
 
 	l := []T1{}
 	for locaKey, x := range r.db {
-		if key.Namespace == locaKey.Namespace {
+		if key.Namespace != "" && key.Namespace == locaKey.Namespace {
+			l = append(l, x)
+		} else {
 			l = append(l, x)
 		}
 	}
