@@ -19,7 +19,7 @@ package ctrlconfig
 import (
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/tctx"
-	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store"
+	"github.com/henderiw/apiserver-runtime-example/pkg/store"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 

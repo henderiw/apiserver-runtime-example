@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store"
+	"github.com/henderiw/apiserver-runtime-example/pkg/store"
 )
 
 const (

@@ -29,9 +29,9 @@ import (
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/tctx"
-	"github.com/henderiw/apiserver-runtime-example/pkg/storage/memory"
-	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store"
-	memstore "github.com/henderiw/apiserver-runtime-example/pkg/storage/store/memory"
+	"github.com/henderiw/apiserver-runtime-example/pkg/config"
+	"github.com/henderiw/apiserver-runtime-example/pkg/store"
+	memstore "github.com/henderiw/apiserver-runtime-example/pkg/store/memory"
 	"github.com/henderiw/logger/log"
 	sdcpb "github.com/iptecharch/sdc-protos/sdcpb"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -82,7 +82,7 @@ func main() {
 
 	if err := builder.APIServer.
 		WithOpenAPIDefinitions("Config", "v0.0.0", openapi.GetOpenAPIDefinitions).
-		WithResourceAndHandler(&v1alpha1.Config{}, memory.NewMemoryStorageProvider(&v1alpha1.Config{}, configStore, targetStore)).
+		WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(&v1alpha1.Config{}, configStore, targetStore)).
 		WithoutEtcd().
 		WithLocalDebugExtension().
 		Execute(); err != nil {

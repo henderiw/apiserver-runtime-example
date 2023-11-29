@@ -5,6 +5,10 @@ IMG ?= $(REGISTRY)/${PROJECT}:$(VERSION)
 
 REPO = github.com/henderiw/apiserver-runtime-example
 
+## Tool Binaries
+CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
+CONTROLLER_TOOLS_VERSION ?= v0.12.1
+
 .PHONY: codegen fix fmt vet lint test tidy
 
 GOBIN := $(shell go env GOPATH)/bin
@@ -47,6 +51,14 @@ genclients:
 		--module $(REPO) \
 		--versions $(REPO)/apis/config/v1alpha1
 
+.PHONY: generate
+generate: controller-gen 
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./apis/inv/..."
+
+.PHONY: manifests
+manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./apis/inv/..." output:crd:artifacts:config=artifacts
+
 fix:
 	go fix ./...
 
@@ -68,3 +80,13 @@ vet:
 
 local-run:
 	apiserver-boot run local --run=etcd,apiserver
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+.PHONY: controller-gen
+controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
+$(CONTROLLER_GEN): $(LOCALBIN)
+	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)

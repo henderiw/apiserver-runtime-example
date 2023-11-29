@@ -26,9 +26,18 @@ type ConfigSpec struct {
 	// Lifecycle determines the lifecycle policies the resource e.g. delete is orphan or delete
 	// will follow
 	Lifecycle Lifecycle `json:"lifecycle,omitempty" yaml:"lifecycle,omitempty"`
+	// Priority defines the priority of this config
+	Priority int `json:"priority,omitempty" yaml:"priroity,omitempty"`
 	// Config defines the configuration to be applied to a target device
 	//+kubebuilder:pruning:PreserveUnknownFields
-	Config runtime.RawExtension `json:"config,omitempty" yaml:"config,omitempty"`
+	Config []ConfigBlob `json:"config" yaml:"config"`
+}
+
+type ConfigBlob struct {
+	// Path defines the path relative to which the value is applicable
+	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+	//+kubebuilder:pruning:PreserveUnknownFields
+	Value runtime.RawExtension `json:"value" yaml:"value"`
 }
 
 // ConfigStatus defines the observed state of Config

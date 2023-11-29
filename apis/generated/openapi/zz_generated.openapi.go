@@ -32,6 +32,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.Condition":         schema_apiserver_runtime_example_apis_config_v1alpha1_Condition(ref),
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConditionedStatus": schema_apiserver_runtime_example_apis_config_v1alpha1_ConditionedStatus(ref),
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.Config":            schema_apiserver_runtime_example_apis_config_v1alpha1_Config(ref),
+		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigBlob":        schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigBlob(ref),
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigList":        schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigList(ref),
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigSpec":        schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigSpec(ref),
 		"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigStatus":      schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigStatus(ref),
@@ -230,6 +231,34 @@ func schema_apiserver_runtime_example_apis_config_v1alpha1_Config(ref common.Ref
 	}
 }
 
+func schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigBlob(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path defines the path relative to which the value is applicable",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/runtime.RawExtension"),
+						},
+					},
+				},
+				Required: []string{"value"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
+	}
+}
+
 func schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -293,18 +322,33 @@ func schema_apiserver_runtime_example_apis_config_v1alpha1_ConfigSpec(ref common
 							Ref:         ref("github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.Lifecycle"),
 						},
 					},
+					"priority": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Priroity defines the priority of this config",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 					"config": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Config defines the configuration to be applied to a target device",
-							Default:     map[string]interface{}{},
-							Ref:         ref("k8s.io/apimachinery/pkg/runtime.RawExtension"),
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigBlob"),
+									},
+								},
+							},
 						},
 					},
 				},
+				Required: []string{"config"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.Lifecycle", "k8s.io/apimachinery/pkg/runtime.RawExtension"},
+			"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.ConfigBlob", "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1.Lifecycle"},
 	}
 }
 
