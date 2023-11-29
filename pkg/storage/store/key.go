@@ -19,15 +19,26 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 )
-
-type ResourceKey struct {
+type Key struct {
 	//schema.GroupVersionKind
 	types.NamespacedName
 }
 
-func (r ResourceKey) String() string {
+func (r Key) String() string {
 	if r.Namespace == "" {
 		return r.Name
 	}
 	return fmt.Sprintf("%s.%s", r.Namespace, r.Name)
+}
+
+func GetNSNKey(nsn types.NamespacedName) Key {
+	return Key{
+		NamespacedName: nsn,
+	}
+}
+
+func GetNameKey(name string) Key {
+	return Key{
+		NamespacedName: types.NamespacedName{Name: name},
+	}
 }

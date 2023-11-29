@@ -3,5 +3,15 @@ kind: Config
 metadata:
   name: test
   namespace: default
+  labels:
+    targetName: dev1
+    targetNamespace: default
 spec:
-  config: test
+  config:
+    interface:
+      - name: "system0"
+        admin-state: "enable"
+        description: "k8s-system0"
+      - name: "lo0"
+        admin-state: "enable"
+        description: "k8s-lo0"

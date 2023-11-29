@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	"github.com/henderiw/apiserver-runtime-example/pkg/storage/store"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -30,19 +29,19 @@ const (
 
 func NewStore[T1 any]() store.Storer[T1] {
 	return &mem[T1]{
-		db: map[store.ResourceKey]T1{},
+		db: map[store.Key]T1{},
 		//callbackFn: []ResourceCallbackFn{},
 	}
 }
 
 type mem[T1 any] struct {
 	m  sync.RWMutex
-	db map[store.ResourceKey]T1
+	db map[store.Key]T1
 	//callbackFn []ResourceCallbackFn
 }
 
 // Get return the type
-func (r *mem[T1]) Get(ctx context.Context, key store.ResourceKey) (T1, error) {
+func (r *mem[T1]) Get(ctx context.Context, key store.Key) (T1, error) {
 	r.m.RLock()
 	defer r.m.RUnlock()
 
@@ -53,22 +52,18 @@ func (r *mem[T1]) Get(ctx context.Context, key store.ResourceKey) (T1, error) {
 	return x, nil
 }
 
-func (r *mem[T1]) List(ctx context.Context, key store.ResourceKey, selectors ...labels.Selector) ([]T1, error) {
+func (r *mem[T1]) List(ctx context.Context, visitorFunc func(ctx context.Context, key store.Key, obj T1)) {
 	r.m.RLock()
 	defer r.m.RUnlock()
 
-	l := []T1{}
-	for locaKey, x := range r.db {
-		if key.Namespace != "" && key.Namespace == locaKey.Namespace {
-			l = append(l, x)
-		} else {
-			l = append(l, x)
+	for key, obj := range r.db {
+		if visitorFunc != nil {
+			visitorFunc(ctx, key, obj)
 		}
 	}
-	return l, nil
 }
 
-func (r *mem[T1]) Create(ctx context.Context, key store.ResourceKey, data T1) error {
+func (r *mem[T1]) Create(ctx context.Context, key store.Key, data T1) error {
 	// if an error is returned the entry already exists
 	if _, err := r.Get(ctx, key); err == nil {
 		return fmt.Errorf("duplicate entry %v", key.String())
@@ -86,7 +81,7 @@ func (r *mem[T1]) Create(ctx context.Context, key store.ResourceKey, data T1) er
 }
 
 // Upsert creates or updates the entry in the cache
-func (r *mem[T1]) Update(ctx context.Context, key store.ResourceKey, data T1) error {
+func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
 	/*
 		exists := true
 		oldd, err := r.Get(ctx, nsn)
@@ -114,20 +109,20 @@ func (r *mem[T1]) Update(ctx context.Context, key store.ResourceKey, data T1) er
 	return nil
 }
 
-func (r *mem[T1]) update(ctx context.Context, key store.ResourceKey, newd T1) {
+func (r *mem[T1]) update(ctx context.Context, key store.Key, newd T1) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	r.db[key] = newd
 }
 
-func (r *mem[T1]) delete(ctx context.Context, key store.ResourceKey) {
+func (r *mem[T1]) delete(ctx context.Context, key store.Key) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	delete(r.db, key)
 }
 
 // Delete deletes the entry in the cache
-func (r *mem[T1]) Delete(ctx context.Context, key store.ResourceKey) error {
+func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
 	// only if an exisitng object gets deleted we
 	// call the registered callbacks
 	exists := true

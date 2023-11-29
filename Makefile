@@ -15,12 +15,12 @@ docker:
 	GOOS=linux GOARCH=arm64 go build -o install/bin/apiserver
 	docker build install --tag apiserver-caas:v0.0.0
 
-.PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+.PHONY:
+docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 .PHONY: docker-push
-docker-push: ## Push docker image with the manager.
+docker-push:  docker-build ## Push docker image with the manager.
 	docker push ${IMG}
 
 install: docker

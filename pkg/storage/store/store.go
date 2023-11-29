@@ -16,26 +16,24 @@ package store
 
 import (
 	"context"
-
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 // Storer defines the interface for a generic storage system.
 type Storer[T1 any] interface {
 	// Retrieve retrieves data for the given key from the storage
-	Get(ctx context.Context, key ResourceKey) (T1, error)
+	Get(ctx context.Context, key Key) (T1, error)
 
 	// Retrieve retrieves data for the given key from the storage
-	List(ctx context.Context, key ResourceKey, selectors ...labels.Selector) ([]T1, error)
+	List(ctx context.Context, visitorFunc func(context.Context, Key, T1))
 
 	// Create data with the given key in the storage
-	Create(ctx context.Context, key ResourceKey, data T1) error
+	Create(ctx context.Context, key Key, data T1) error
 
 	// Update data with the given key in the storage
-	Update(ctx context.Context, key ResourceKey, data T1) error
+	Update(ctx context.Context, key Key, data T1) error
 
 	// Delete deletes data and key from the storage
-	Delete(ctx context.Context, key ResourceKey) error
+	Delete(ctx context.Context, key Key) error
 
 	// Watch watches change
 	//Watch(ctx context.Context, key ResourceKey) error
