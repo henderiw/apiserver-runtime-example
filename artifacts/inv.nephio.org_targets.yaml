@@ -24,7 +24,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Target is the Schema for the vlan API
+        description: Target is the Schema for the Target API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -45,17 +45,8 @@ spec:
                 description: Address defines the address of the mgmt ip address of
                   the target
                 type: string
-              encoding:
-                enum:
-                - unknown
-                - JSON
-                - JSON_IETF
-                - bytes
-                - protobuf
-                - ASCII
+              connectionProfile:
                 type: string
-              insecure:
-                type: boolean
               parametersRef:
                 description: ParametersRef points to the vendor or implementation
                   specific params for the target.
@@ -94,12 +85,6 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
-              protocol:
-                enum:
-                - unknown
-                - gnmi
-                - netconf
-                type: string
               provider:
                 description: Provider specifies the provider using this target.
                 properties:
@@ -115,15 +100,20 @@ spec:
                 - version
                 type: object
               secretName:
-                description: SecretName defines the name of the secret
+                description: SecretName defines the name of the secret to connect
+                  to the target
                 type: string
-              skipVerify:
-                type: boolean
+              syncProfile:
+                type: string
               tlsSecretName:
+                description: TLSSecretName defines the name of the secret to connect
+                  to the target
                 type: string
             required:
+            - connectionProfile
             - provider
             - secretName
+            - syncProfile
             type: object
           status:
             description: TargetStatus defines the observed state of Target

@@ -17,8 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
@@ -26,7 +26,10 @@ var (
 	SchemeGroupVersion = schema.GroupVersion{Group: "config.example.com", Version: "v1alpha1"}
 	// AddToScheme applies all the stored functions to the scheme. A non-nil error
 	// indicates that one function failed and the attempt was abandoned.
-	AddToScheme = (&runtime.SchemeBuilder{}).AddToScheme
+	AddToScheme = SchemeBuilder.AddToScheme
+
+	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
+	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 )
 
 // Resource takes an unqualified resource and returns a Group qualified GroupResource

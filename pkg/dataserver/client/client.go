@@ -53,14 +53,14 @@ type client struct {
 }
 
 func (r *client) Stop(ctx context.Context) {
-	log := log.FromContext(ctx)
+	log := log.FromContext(ctx).With("address", r.cfg.Address)
 	log.Info("stopping...")
 	r.conn.Close()
 	r.cancel()
 }
 
 func (r *client) Start(ctx context.Context) error {
-	log := log.FromContext(ctx)
+	log := log.FromContext(ctx).With("address", r.cfg.Address)
 	log.Info("starting...")
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

@@ -17,6 +17,7 @@ package fake
 
 import (
 	configv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
+	invv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/inv/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,6 +30,7 @@ var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
 	configv1alpha1.AddToScheme,
+	invv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

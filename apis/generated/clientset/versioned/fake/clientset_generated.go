@@ -19,6 +19,8 @@ import (
 	clientset "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned"
 	configv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/typed/config/v1alpha1"
 	fakeconfigv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/typed/config/v1alpha1/fake"
+	invv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/typed/inv/v1alpha1"
+	fakeinvv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/typed/inv/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -79,4 +81,9 @@ var (
 // ConfigV1alpha1 retrieves the ConfigV1alpha1Client
 func (c *Clientset) ConfigV1alpha1() configv1alpha1.ConfigV1alpha1Interface {
 	return &fakeconfigv1alpha1.FakeConfigV1alpha1{Fake: &c.Fake}
+}
+
+// InvV1alpha1 retrieves the InvV1alpha1Client
+func (c *Clientset) InvV1alpha1() invv1alpha1.InvV1alpha1Interface {
+	return &fakeinvv1alpha1.FakeInvV1alpha1{Fake: &c.Fake}
 }

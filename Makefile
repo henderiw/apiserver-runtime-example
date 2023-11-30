@@ -49,7 +49,7 @@ genclients:
 		-g lister-gen \
 		-g openapi-gen \
 		--module $(REPO) \
-		--versions $(REPO)/apis/config/v1alpha1
+		--versions $(REPO)/apis/config/v1alpha1,$(REPO)/apis/inv/v1alpha1
 
 .PHONY: generate
 generate: controller-gen 

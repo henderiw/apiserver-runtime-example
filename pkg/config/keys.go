@@ -44,7 +44,7 @@ func getTargetKey(labels map[string]string) (store.Key, error) {
 		targetName = labels[targetNameKey]
 		targetNamespace = labels[targetNamespaceKey]
 	}
-	if targetName == "" || targetName == "" {
+	if targetName == "" || targetNamespace == "" {
 		return store.Key{}, fmt.Errorf(" target namespace and name is required got %s.%s", targetNamespace, targetName)
 	}
 	return store.Key{NamespacedName: types.NamespacedName{Namespace: targetNamespace, Name: targetName}}, nil

@@ -21,9 +21,10 @@ import (
 	"strings"
 
 	api "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
-	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/tctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/store"
+	"github.com/henderiw/apiserver-runtime-example/pkg/target"
 	"github.com/henderiw/logger/log"
+	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -54,7 +55,7 @@ const (
 // TODO this is to be replaced by the metadata
 //var targetKey = store.GetNSNKey(types.NamespacedName{Namespace: "default", Name: "dev1"})
 
-func NewProvider(obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[tctx.Context]) builderrest.ResourceHandlerProvider {
+func NewProvider(obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[target.Context]) builderrest.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, getter generic.RESTOptionsGetter) (rest.Storage, error) {
 		gr := obj.GetGroupVersionResource().GroupResource()
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
@@ -81,7 +82,7 @@ func NewProvider(obj resource.Object, store store.Storer[runtime.Object], target
 
 func NewMemoryREST(
 	store store.Storer[runtime.Object],
-	targetStore store.Storer[tctx.Context],
+	targetStore store.Storer[target.Context],
 	gr schema.GroupResource,
 	//gvk schema.GroupVersionKind,
 	codec runtime.Codec,
@@ -105,7 +106,7 @@ func NewMemoryREST(
 
 type mem struct {
 	store       store.Storer[runtime.Object]
-	targetStore store.Storer[tctx.Context]
+	targetStore store.Storer[target.Context]
 
 	rest.TableConvertor
 	codec runtime.Codec
@@ -248,7 +249,7 @@ func (r *mem) Create(
 	// interact with the data server
 	tctx, err := r.targetStore.Get(ctx, targetKey)
 	if err != nil {
-		return nil, apierrors.NewInternalError(err)
+		return nil, apierrors.NewInternalError(errors.Wrap(err, "target not found"))
 	}
 	if err := tctx.Create(ctx, targetKey, newObj); err != nil {
 		return nil, apierrors.NewInternalError(err)

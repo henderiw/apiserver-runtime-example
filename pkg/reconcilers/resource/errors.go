@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Nephio Authors.
+Copyright 2022 Nokia.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ctrlconfig
+package resource
 
 import (
-	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
-	"github.com/henderiw/apiserver-runtime-example/pkg/target"
-	"github.com/henderiw/apiserver-runtime-example/pkg/store"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-type ControllerConfig struct {
-	ConfigStore     store.Storer[runtime.Object]
-	TargetStore     store.Storer[target.Context]
-	DataServerStore store.Storer[dsctx.Context]
+const (
+	errUpdateObject = "cannot update k8s resource"
+)
+
+type ErrorIs func(err error) bool
+
+func Ignore(is ErrorIs, err error) error {
+	if is(err) {
+		return nil
+	}
+	return err
+}
+
+// IgnoreNotFound returns the supplied error, or nil if the error indicates a
+// Kubernetes resource was not found.
+func IgnoreNotFound(err error) error {
+	return Ignore(errors.IsNotFound, err)
 }

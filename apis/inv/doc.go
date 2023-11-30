@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Nephio Authors.
+Copyright 2023 The xxx Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ctrlconfig
+// +k8s:deepcopy-gen=package,register
+// +groupName=inv.nephio.org
 
-import (
-	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
-	"github.com/henderiw/apiserver-runtime-example/pkg/target"
-	"github.com/henderiw/apiserver-runtime-example/pkg/store"
-	"k8s.io/apimachinery/pkg/runtime"
-)
-
-type ControllerConfig struct {
-	ConfigStore     store.Storer[runtime.Object]
-	TargetStore     store.Storer[target.Context]
-	DataServerStore store.Storer[dsctx.Context]
-}
+// Package v1alpha1 is the v1alpha1 version of the API.
+package config 

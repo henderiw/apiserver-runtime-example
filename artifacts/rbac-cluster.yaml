@@ -4,7 +4,7 @@ metadata:
   name: config-apiserver-clusterrole
 rules:
 - apiGroups: [""]
-  resources: ["namespaces"]
+  resources: ["namespaces", secrets]
   verbs: ["get", "watch", "list"]
 - apiGroups: ["admissionregistration.k8s.io"]
   resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
@@ -14,5 +14,10 @@ rules:
   verbs: ["get", "watch", "list"]
 - apiGroups: ["config.example.com"]
   resources: ["configs", "configs/status"]
-  verbs: ["create","update","patch","get", "watch", "list"]
-
+  verbs: ["get", "watch", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["inv.nephio.org"]
+  resources: ["targets", "targets/status"]
+  verbs: ["get", "watch", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["inv.nephio.org"]
+  resources: ["targetconnectionprofiles", "targetsyncprofiles"]
+  verbs: ["get", "watch", "list"]

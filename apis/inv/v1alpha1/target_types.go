@@ -24,40 +24,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type Encoding string
-
-const (
-	Encoding_Unknown   Encoding = "unknown"
-	Encoding_JSON      Encoding = "JSON"
-	Encoding_JSON_IETF Encoding = "JSON_IETF"
-	Encoding_Bytes     Encoding = "bytes"
-	Encoding_Protobuf  Encoding = "protobuf"
-	Encoding_Ascii     Encoding = "ASCII"
-)
-
-type Protocol string
-
-const (
-	Protocol_Unknown Encoding = "unknown"
-	Protocol_GNMI    Encoding = "gnmi"
-	Protocol_NETCONF Encoding = "netconf"
-)
-
 // TargetSpec defines the desired state of Target
 type TargetSpec struct {
 	// Provider specifies the provider using this target.
 	Provider Provider `json:"provider" yaml:"provider"`
-	// SecretName defines the name of the secret
-	SecretName string `json:"secretName" yaml:"secretName"`
 	// Address defines the address of the mgmt ip address of the target
 	Address *string `json:"address,omitempty" yaml:"address,omitempty"`
-	//+kubebuilder:validation:Enum=unknown;JSON;JSON_IETF;bytes;protobuf;ASCII;
-	Encoding *Encoding `json:"encoding,omitempty" yaml:"encoding,omitempty"`
-	Insecure *bool     `json:"insecure,omitempty" yaml:"insecure,omitempty"`
-	//+kubebuilder:validation:Enum=unknown;gnmi;netconf;
-	Protocol      *Protocol `json:"protocol,omitempty" yaml:"protocol,omitempty"`
-	SkipVerify    *bool     `json:"skipVerify,omitempty" yaml:"skipVerify,omitempty"`
-	TLSSecretName *string   `json:"tlsSecretName,omitempty" yaml:"tlsSecretName,omitempty"`
+	// SecretName defines the name of the secret to connect to the target
+	SecretName string `json:"secretName" yaml:"secretName"`
+	// TLSSecretName defines the name of the secret to connect to the target
+	TLSSecretName *string `json:"tlsSecretName,omitempty" yaml:"tlsSecretName,omitempty"`
+
+	ConnectionProfile string `json:"connectionProfile" yaml:"connectionProfile"`
+	SyncProfile       string `json:"syncProfile" yaml:"syncProfile"`
 	// ParametersRef points to the vendor or implementation specific params for the
 	// target.
 	// +optional
@@ -81,10 +60,14 @@ type TargetStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:resource:categories={nephio,inv}
-// Target is the Schema for the vlan API
+// Target is the Schema for the Target API
+// +k8s:openapi-gen=true
 type Target struct {
 	metav1.TypeMeta   `json:",inline" yaml:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
@@ -93,9 +76,9 @@ type Target struct {
 	Status TargetStatus `json:"status,omitempty" yaml:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // TargetList contains a list of Targets
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type TargetList struct {
 	metav1.TypeMeta `json:",inline" yaml:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
@@ -108,7 +91,7 @@ func init() {
 
 var (
 	TargetKind             = reflect.TypeOf(Target{}).Name()
-	TargetGroupKind        = schema.GroupKind{Group: GroupVersion.Group, Kind: TargetKind}.String()
-	TargetKindAPIVersion   = TargetKind + "." + GroupVersion.String()
-	TargetGroupVersionKind = GroupVersion.WithKind(TargetKind)
+	TargetGroupKind        = schema.GroupKind{Group: SchemeGroupVersion.Group, Kind: TargetKind}.String()
+	TargetKindAPIVersion   = TargetKind + "." + SchemeGroupVersion.String()
+	TargetGroupVersionKind = SchemeGroupVersion.WithKind(TargetKind)
 )

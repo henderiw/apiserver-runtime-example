@@ -23,6 +23,7 @@ import (
 	versioned "github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned"
 	config "github.com/henderiw/apiserver-runtime-example/apis/generated/informers/externalversions/config"
 	internalinterfaces "github.com/henderiw/apiserver-runtime-example/apis/generated/informers/externalversions/internalinterfaces"
+	inv "github.com/henderiw/apiserver-runtime-example/apis/generated/informers/externalversions/inv"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -241,8 +242,13 @@ type SharedInformerFactory interface {
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
 	Config() config.Interface
+	Inv() inv.Interface
 }
 
 func (f *sharedInformerFactory) Config() config.Interface {
 	return config.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Inv() inv.Interface {
+	return inv.New(f, f.namespace, f.tweakListOptions)
 }
