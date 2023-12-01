@@ -52,11 +52,18 @@ const (
 	targetNamespaceKey = "targetNamespace"
 )
 
+var _ rest.StandardStorage = &cfg{}
+var _ rest.Scoper = &cfg{}
+var _ rest.Storage = &cfg{}
+
 // TODO this is to be replaced by the metadata
 //var targetKey = store.GetNSNKey(types.NamespacedName{Namespace: "default", Name: "dev1"})
 
 func NewProvider(ctx context.Context, obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[target.Context]) builderrest.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, getter generic.RESTOptionsGetter) (rest.Storage, error) {
+
+		fmt.Println("schema", *scheme)
+
 		gr := obj.GetGroupVersionResource().GroupResource()
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
 			StorageMediaType:  runtime.ContentTypeJSON,
@@ -68,7 +75,7 @@ func NewProvider(ctx context.Context, obj resource.Object, store store.Storer[ru
 		if err != nil {
 			return nil, err
 		}
-		return NewMemoryREST(
+		return NewConfigREST(
 			ctx,
 			store,
 			targetStore,
@@ -81,7 +88,7 @@ func NewProvider(ctx context.Context, obj resource.Object, store store.Storer[ru
 	}
 }
 
-func NewMemoryREST(
+func NewConfigREST(
 	ctx context.Context,
 	store store.Storer[runtime.Object],
 	targetStore store.Storer[target.Context],
@@ -315,8 +322,10 @@ func (r *cfg) Update(
 	if !ok {
 		return nil, false, apierrors.NewBadRequest(fmt.Sprintf("expected old Config object, got %T", oldConfig))
 	}
+
+	fmt.Printf("ctx: %#v\n", ctx)
 	fmt.Printf("objInfo: %#v\n", objInfo)
-	log.Info("update", "objInfo", objInfo)
+	log.Info("update", "objInfo", reflect.TypeOf(objInfo))
 	log.Info("update", "oldObject", oldObj)
 	newObj, err := objInfo.UpdatedObject(ctx, oldObj)
 	if err != nil {

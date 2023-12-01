@@ -28,8 +28,8 @@ import (
 	"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/scheme"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/openapi"
-	"github.com/henderiw/apiserver-runtime-example/pkg/config"
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
+	"github.com/henderiw/apiserver-runtime-example/pkg/filepath"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/ctrlconfig"
@@ -41,13 +41,13 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth" // register auth plugins
 	"k8s.io/component-base/logs"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
 const (
@@ -115,11 +115,11 @@ func main() {
 			}
 		}
 	}
-
 	go func() {
 		if err := builder.APIServer.
 			WithOpenAPIDefinitions("Config", "v0.0.0", openapi.GetOpenAPIDefinitions).
-			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
+			WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
+			//WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
 			WithoutEtcd().
 			WithLocalDebugExtension().
 			Execute(); err != nil {
