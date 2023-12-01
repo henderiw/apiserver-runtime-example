@@ -16,6 +16,8 @@ package store
 
 import (
 	"context"
+
+	"github.com/henderiw/apiserver-runtime-example/pkg/store/watch"
 )
 
 // Storer defines the interface for a generic storage system.
@@ -36,5 +38,5 @@ type Storer[T1 any] interface {
 	Delete(ctx context.Context, key Key) error
 
 	// Watch watches change
-	//Watch(ctx context.Context, key ResourceKey) error
+	Watch(ctx context.Context) (watch.Interface[T1], error)
 }

@@ -12,38 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package watch
 
 import (
 	"sync"
-
-	"k8s.io/apimachinery/pkg/watch"
 )
 
-func NewWatchers(maxWatchers int) *watchers {
-	return &watchers{
-		watchers:    make(map[int]*mWatch, maxWatchers),
-		idAllocator: *NewIDAllocator(maxWatchers),
+func NewWatchers[T1 any](maxWatchers int) *Watchers[T1] {
+	return &Watchers[T1]{
+		watchers:    make(map[int]*WatchCtx[T1], maxWatchers),
+		idAllocator: *newIDAllocator(maxWatchers),
 	}
 }
 
-type watchers struct {
+type Watchers[T1 any] struct {
 	m           sync.RWMutex
-	watchers    map[int]*mWatch
-	idAllocator IDAllocator
+	watchers    map[int]*WatchCtx[T1]
+	idAllocator idAllocator
 }
 
-func (r *watchers) IsExhausted() bool {
+func (r *Watchers[T1]) GetWatchContext() *WatchCtx[T1] {
+	return &WatchCtx[T1]{
+		Watchers: r,
+		ResultCh: make(chan Event[T1]),
+	}
+}
+
+func (r *Watchers[T1]) IsExhausted() bool {
 	return r.idAllocator.IsExhausted()
 }
 
-func (r *watchers) Len() int {
+func (r *Watchers[T1]) Len() int {
 	r.m.RLock()
 	defer r.m.RUnlock()
 	return len(r.watchers)
 }
 
-func (r *watchers) Add(w *mWatch) error {
+func (r *Watchers[T1]) Add(w *WatchCtx[T1]) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 	var err error
@@ -55,31 +60,23 @@ func (r *watchers) Add(w *mWatch) error {
 	return nil
 }
 
-func (r *watchers) Del(id int) {
+func (r *Watchers[T1]) Del(id int) {
 	r.m.Lock()
 	defer r.m.Unlock()
+	wctx, ok := r.watchers[id]
+	if !ok {
+		return
+	}
 	r.idAllocator.ReleaseID(id)
 	delete(r.watchers, id)
+	// close safely since the client will not get info any longer after the delete
+	close(wctx.ResultCh)
 }
 
-func (r *watchers) NotifyWatchers(ev watch.Event) {
+func (r *Watchers[T1]) NotifyWatchers(ev Event[T1]) {
 	r.m.RLock()
 	defer r.m.RUnlock()
 	for _, w := range r.watchers {
-		w.resultCh <- ev
+		w.ResultCh <- ev
 	}
-}
-
-type mWatch struct {
-	watchers *watchers
-	resultCh chan watch.Event
-	id       int
-}
-
-func (r *mWatch) Stop() {
-	r.watchers.Del(r.id)
-}
-
-func (r *mWatch) ResultChan() <-chan watch.Event {
-	return r.resultCh
 }

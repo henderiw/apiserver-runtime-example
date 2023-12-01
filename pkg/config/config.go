@@ -100,7 +100,7 @@ func NewMemoryREST(
 		isNamespaced: isNamespaced,
 		newFunc:      newFunc,
 		newListFunc:  newListFunc,
-		watchers:     NewMemWatchers(),
+		watchers:     NewWatchers(32),
 	}
 }
 
@@ -115,7 +115,7 @@ type mem struct {
 	//gvk          schema.GroupVersionKind
 	isNamespaced bool
 
-	watchers    *memWatchers
+	watchers    *watchers
 	newFunc     func() runtime.Object
 	newListFunc func() runtime.Object
 }
@@ -259,6 +259,11 @@ func (r *mem) Create(
 	if err := r.store.Create(ctx, key, runtimeObject); err != nil {
 		return nil, apierrors.NewInternalError(err)
 	}
+
+	r.watchers.NotifyWatchers(watch.Event{
+		Type:   watch.Added,
+		Object: newObj,
+	})
 	return runtimeObject, nil
 }
 
@@ -338,16 +343,24 @@ func (r *mem) Update(
 		if err := r.store.Update(ctx, key, newObj); err != nil {
 			return nil, false, apierrors.NewInternalError(err)
 		}
+		r.watchers.NotifyWatchers(watch.Event{
+			Type:   watch.Added,
+			Object: newObj,
+		})
 		return newObj, false, nil
-	} else {
-		if err := tctx.Create(ctx, targetKey, newConfig); err != nil {
-			return nil, false, apierrors.NewInternalError(err)
-		}
-		if err := r.store.Create(ctx, key, newObj); err != nil {
-			return nil, false, apierrors.NewInternalError(err)
-		}
-		return newObj, true, nil
 	}
+	if err := tctx.Create(ctx, targetKey, newConfig); err != nil {
+		return nil, false, apierrors.NewInternalError(err)
+	}
+	if err := r.store.Create(ctx, key, newObj); err != nil {
+		return nil, false, apierrors.NewInternalError(err)
+	}
+	r.watchers.NotifyWatchers(watch.Event{
+		Type:   watch.Modified,
+		Object: newObj,
+	})
+	return newObj, true, nil
+
 }
 
 func (r *mem) Delete(
@@ -399,6 +412,10 @@ func (r *mem) Delete(
 	if err := r.store.Delete(ctx, key); err != nil {
 		return nil, false, apierrors.NewInternalError(err)
 	}
+	r.watchers.NotifyWatchers(watch.Event{
+		Type:   watch.Modified,
+		Object: obj,
+	})
 
 	return obj, true, nil
 }
@@ -451,11 +468,31 @@ func (r *mem) Watch(
 	log := log.FromContext(ctx)
 	log.Info("watch", "options", *options)
 
-	_, cancel := context.WithCancel(ctx)
+	if r.watchers.IsExhausted() {
+		return nil, fmt.Errorf("cannot allocate watcher, out of resources")
+	}
+	w := &mWatch{
+		watchers: r.watchers,
+		resultCh: make(chan watch.Event, 10),
+	}
+	// On initial watch, send all the existing objects
+	list, err := r.List(ctx, options)
+	if err != nil {
+		return nil, err
+	}
 
-	w := &memWatch{
-		cancel:   cancel,
-		resultCh: make(chan watch.Event, 64),
+	items := reflect.ValueOf(list).Elem().FieldByName("Items")
+	for i := 0; i < items.Len(); i++ {
+		obj := items.Index(i).Addr().Interface().(runtime.Object)
+		w.resultCh <- watch.Event{
+			Type:   watch.Added,
+			Object: obj,
+		}
+	}
+	// this ensures the initial events from the list
+	// get processed first
+	if err := r.watchers.Add(w); err != nil {
+		return nil, err
 	}
 
 	return w, nil

@@ -17,9 +17,11 @@ package memory
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/henderiw/apiserver-runtime-example/pkg/store"
+	"github.com/henderiw/apiserver-runtime-example/pkg/store/watch"
 )
 
 const (
@@ -29,15 +31,15 @@ const (
 
 func NewStore[T1 any]() store.Storer[T1] {
 	return &mem[T1]{
-		db: map[store.Key]T1{},
-		//callbackFn: []ResourceCallbackFn{},
+		db:       map[store.Key]T1{},
+		watchers: watch.NewWatchers[T1](32),
 	}
 }
 
 type mem[T1 any] struct {
-	m  sync.RWMutex
-	db map[store.Key]T1
-	//callbackFn []ResourceCallbackFn
+	m        sync.RWMutex
+	db       map[store.Key]T1
+	watchers *watch.Watchers[T1]
 }
 
 // Get return the type
@@ -71,41 +73,39 @@ func (r *mem[T1]) Create(ctx context.Context, key store.Key, data T1) error {
 	// update the cache before calling the callback since the cb fn will use this data
 	r.update(ctx, key, data)
 
-	/*
-		// call callback if data got changed or if no data exists
-		for _, cb := range r.callbackFn {
-			cb(ctx, AddAction, nsn, newd)
-		}
-	*/
+	// notify watchers
+	r.watchers.NotifyWatchers(watch.Event[T1]{
+		Type:   watch.Added,
+		Object: data,
+	})
 	return nil
 }
 
 // Upsert creates or updates the entry in the cache
 func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
-	/*
-		exists := true
-		oldd, err := r.Get(ctx, nsn)
-		if err != nil {
-			exists = false
-		}
-	*/
+	exists := true
+	oldd, err := r.Get(ctx, key)
+	if err != nil {
+		exists = false
+	}
+
 	// update the cache before calling the callback since the cb fn will use this data
 	r.update(ctx, key, data)
 
-	// call callback if data got changed or if no data exists
-	/*
-		if exists {
-			if !reflect.DeepEqual(oldd, newd) {
-				for _, cb := range r.callbackFn {
-					cb(ctx, UpsertAction, nsn, newd)
-				}
-			}
-		} else {
-			for _, cb := range r.callbackFn {
-				cb(ctx, AddAction, nsn, newd)
-			}
+	// // notify watchers based on the fact the data got modified or not
+	if exists {
+		if !reflect.DeepEqual(oldd, data) {
+			r.watchers.NotifyWatchers(watch.Event[T1]{
+				Type:   watch.Modified,
+				Object: data,
+			})
 		}
-	*/
+	} else {
+		r.watchers.NotifyWatchers(watch.Event[T1]{
+			Type:   watch.Added,
+			Object: data,
+		})
+	}
 	return nil
 }
 
@@ -126,35 +126,46 @@ func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
 	// only if an exisitng object gets deleted we
 	// call the registered callbacks
 	exists := true
-	_, err := r.Get(ctx, key)
+	obj, err := r.Get(ctx, key)
 	if err != nil {
-		exists = false
+		return nil
 	}
 	// if exists call the callback
 	if exists {
-		/*
-			for _, cb := range r.callbackFn {
-				cb(ctx, DeleteAction, nsn, d)
-			}
-		*/
+		r.watchers.NotifyWatchers(watch.Event[T1]{
+			Type:   watch.Deleted,
+			Object: obj,
+		})
 	}
 	// delete the entry to ensure the cb uses the proper data
 	r.delete(ctx, key)
 	return nil
 }
 
-/*
-func (r *mem[T1]) AddWatch(fn ResourceCallbackFn) {
+func (r *mem[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
 	r.m.Lock()
 	defer r.m.Unlock()
-	found := false
-	for _, cb := range r.callbackFn {
-		if reflect.ValueOf(cb).Pointer() == reflect.ValueOf(fn).Pointer() {
-			found = true
+
+	if r.watchers.IsExhausted() {
+		return nil, fmt.Errorf("cannot allocate watcher, out of resources")
+	}
+	w := r.watchers.GetWatchContext()
+
+	// On initial watch, send all the existing objects
+	items := map[store.Key]T1{}
+	r.List(ctx, func(ctx context.Context, key store.Key, obj T1) {
+		items[key] = obj
+	})
+	for _, obj := range items {
+		w.ResultCh <- watch.Event[T1]{
+			Type:   watch.Added,
+			Object: obj,
 		}
 	}
-	if !found {
-		r.callbackFn = append(r.callbackFn, fn)
+	// this ensures the initial events from the list
+	// get processed first
+	if err := r.watchers.Add(w); err != nil {
+		return nil, err
 	}
+	return w, nil
 }
-*/
