@@ -36,7 +36,7 @@ const (
 )
 
 func (r EventType) String() string {
-	return [...]string{"Create", "Update", "Delete"}[r]
+	return [...]string{"Added", "Modified", "Deleted"}[r]
 }
 
 // CreateEvent is an event where a object was created.

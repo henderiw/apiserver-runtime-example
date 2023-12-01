@@ -15,7 +15,11 @@
 package watch
 
 import (
+	"context"
+	"fmt"
 	"sync"
+
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func NewWatchers[T1 any](maxWatchers int) *Watchers[T1] {
@@ -34,7 +38,7 @@ type Watchers[T1 any] struct {
 func (r *Watchers[T1]) GetWatchContext() *WatchCtx[T1] {
 	return &WatchCtx[T1]{
 		Watchers: r,
-		ResultCh: make(chan Event[T1]),
+		ResultCh: make(chan Event[T1], 10),
 	}
 }
 
@@ -56,6 +60,7 @@ func (r *Watchers[T1]) Add(w *WatchCtx[T1]) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("added watcher", w.id)
 	r.watchers[w.id] = w
 	return nil
 }
@@ -73,10 +78,13 @@ func (r *Watchers[T1]) Del(id int) {
 	close(wctx.ResultCh)
 }
 
-func (r *Watchers[T1]) NotifyWatchers(ev Event[T1]) {
+func (r *Watchers[T1]) NotifyWatchers(ctx context.Context, ev Event[T1]) {
 	r.m.RLock()
 	defer r.m.RUnlock()
-	for _, w := range r.watchers {
+	log := log.FromContext(ctx)
+	log.Info("notify watchers", "eventType", ev.Type.String())
+	for id, w := range r.watchers {
+		log.Info("notify watcher", "eventType", ev.Type.String(), "id", id)
 		w.ResultCh <- ev
 	}
 }

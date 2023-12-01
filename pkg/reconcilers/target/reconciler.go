@@ -33,7 +33,7 @@ func init() {
 }
 
 const (
-	finalizer = "infra.nephio.org/finalizer"
+	finalizer = "target.inv.nephio.org/finalizer"
 	// errors
 	errGetCr           = "cannot get cr"
 	errUpdateDataStore = "cannot update datastore"
@@ -110,7 +110,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if !cr.GetDeletionTimestamp().IsZero() {
 		// check if this is the last one -> if so stop the client to the dataserver
-		currentTargetCtx, err := r.targetStore.Get(ctx, key)
+		targetCtx, err := r.targetStore.Get(ctx, key)
 		if err != nil {
 			// client does not exist
 			if err := r.finalizer.RemoveFinalizer(ctx, cr); err != nil {
@@ -121,10 +121,11 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, nil
 		}
 		// delete the mapping in the dataserver cache, which keeps track of all targets per dataserver
-		r.deleteTargetFromDataServer(ctx, store.GetNameKey(currentTargetCtx.Client.GetAddress()), key)
+		r.deleteTargetFromDataServer(ctx, store.GetNameKey(targetCtx.Client.GetAddress()), key)
 		// delete the datastore
-		if currentTargetCtx.DataStore != nil {
-			rsp, err := currentTargetCtx.Client.DeleteDataStore(ctx, &sdcpb.DeleteDataStoreRequest{Name: key.String()})
+		if targetCtx.DataStore != nil {
+			log.Info("deleting datastore", "key", key.String())
+			rsp, err := targetCtx.Client.DeleteDataStore(ctx, &sdcpb.DeleteDataStoreRequest{Name: key.String()})
 			if err != nil {
 				log.Error(err, "cannot delete datastore")
 				return ctrl.Result{Requeue: true}, err

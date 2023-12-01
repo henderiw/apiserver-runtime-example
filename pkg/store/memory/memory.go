@@ -22,6 +22,7 @@ import (
 
 	"github.com/henderiw/apiserver-runtime-example/pkg/store"
 	"github.com/henderiw/apiserver-runtime-example/pkg/store/watch"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -74,7 +75,7 @@ func (r *mem[T1]) Create(ctx context.Context, key store.Key, data T1) error {
 	r.update(ctx, key, data)
 
 	// notify watchers
-	r.watchers.NotifyWatchers(watch.Event[T1]{
+	r.watchers.NotifyWatchers(ctx, watch.Event[T1]{
 		Type:   watch.Added,
 		Object: data,
 	})
@@ -95,13 +96,13 @@ func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
 	// // notify watchers based on the fact the data got modified or not
 	if exists {
 		if !reflect.DeepEqual(oldd, data) {
-			r.watchers.NotifyWatchers(watch.Event[T1]{
+			r.watchers.NotifyWatchers(ctx, watch.Event[T1]{
 				Type:   watch.Modified,
 				Object: data,
 			})
 		}
 	} else {
-		r.watchers.NotifyWatchers(watch.Event[T1]{
+		r.watchers.NotifyWatchers(ctx, watch.Event[T1]{
 			Type:   watch.Added,
 			Object: data,
 		})
@@ -132,7 +133,7 @@ func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
 	}
 	// if exists call the callback
 	if exists {
-		r.watchers.NotifyWatchers(watch.Event[T1]{
+		r.watchers.NotifyWatchers(ctx, watch.Event[T1]{
 			Type:   watch.Deleted,
 			Object: obj,
 		})
@@ -143,9 +144,11 @@ func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
 }
 
 func (r *mem[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
-	r.m.Lock()
-	defer r.m.Unlock()
+	//r.m.Lock()
+	//defer r.m.Unlock()
 
+	log := log.FromContext(ctx)
+	log.Info("watch memory store")
 	if r.watchers.IsExhausted() {
 		return nil, fmt.Errorf("cannot allocate watcher, out of resources")
 	}
@@ -156,6 +159,7 @@ func (r *mem[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
 	r.List(ctx, func(ctx context.Context, key store.Key, obj T1) {
 		items[key] = obj
 	})
+	log.Info("watch list items", "len", len(items))
 	for _, obj := range items {
 		w.ResultCh <- watch.Event[T1]{
 			Type:   watch.Added,
@@ -164,8 +168,11 @@ func (r *mem[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
 	}
 	// this ensures the initial events from the list
 	// get processed first
+	log.Info("watcher add")
 	if err := r.watchers.Add(w); err != nil {
+		log.Info("cannot add watcher", "error", err.Error())
 		return nil, err
 	}
+	log.Info("watcher added")
 	return w, nil
 }

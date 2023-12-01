@@ -55,7 +55,7 @@ const (
 // TODO this is to be replaced by the metadata
 //var targetKey = store.GetNSNKey(types.NamespacedName{Namespace: "default", Name: "dev1"})
 
-func NewProvider(obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[target.Context]) builderrest.ResourceHandlerProvider {
+func NewProvider(ctx context.Context, obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[target.Context]) builderrest.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, getter generic.RESTOptionsGetter) (rest.Storage, error) {
 		gr := obj.GetGroupVersionResource().GroupResource()
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
@@ -69,6 +69,7 @@ func NewProvider(obj resource.Object, store store.Storer[runtime.Object], target
 			return nil, err
 		}
 		return NewMemoryREST(
+			ctx,
 			store,
 			targetStore,
 			gr,
@@ -81,6 +82,7 @@ func NewProvider(obj resource.Object, store store.Storer[runtime.Object], target
 }
 
 func NewMemoryREST(
+	ctx context.Context,
 	store store.Storer[runtime.Object],
 	targetStore store.Storer[target.Context],
 	gr schema.GroupResource,
@@ -90,7 +92,7 @@ func NewMemoryREST(
 	newFunc func() runtime.Object,
 	newListFunc func() runtime.Object,
 ) rest.Storage {
-	return &mem{
+	c := &cfg{
 		store:          store,
 		targetStore:    targetStore,
 		TableConvertor: rest.NewDefaultTableConvertor(gr),
@@ -102,9 +104,13 @@ func NewMemoryREST(
 		newListFunc:  newListFunc,
 		watchers:     NewWatchers(32),
 	}
+	// start watching target changes
+	targetWatcher := targetWatcher{targetStore: targetStore}
+	targetWatcher.Watch(ctx)
+	return c
 }
 
-type mem struct {
+type cfg struct {
 	store       store.Storer[runtime.Object]
 	targetStore store.Storer[target.Context]
 
@@ -120,21 +126,21 @@ type mem struct {
 	newListFunc func() runtime.Object
 }
 
-func (r *mem) Destroy() {}
+func (r *cfg) Destroy() {}
 
-func (r *mem) New() runtime.Object {
+func (r *cfg) New() runtime.Object {
 	return r.newFunc()
 }
 
-func (r *mem) NewList() runtime.Object {
+func (r *cfg) NewList() runtime.Object {
 	return r.newListFunc()
 }
 
-func (r *mem) NamespaceScoped() bool {
+func (r *cfg) NamespaceScoped() bool {
 	return r.isNamespaced
 }
 
-func (r *mem) Get(
+func (r *cfg) Get(
 	ctx context.Context,
 	name string,
 	options *metav1.GetOptions,
@@ -177,7 +183,7 @@ func appendItem(v reflect.Value, obj runtime.Object) {
 	v.Set(reflect.Append(v, reflect.ValueOf(obj).Elem()))
 }
 
-func (r *mem) List(
+func (r *cfg) List(
 	ctx context.Context,
 	options *metainternalversion.ListOptions,
 ) (runtime.Object, error) {
@@ -218,7 +224,7 @@ func (r *mem) List(
 	return newListObj, nil
 }
 
-func (r *mem) Create(
+func (r *cfg) Create(
 	ctx context.Context,
 	runtimeObject runtime.Object,
 	createValidation rest.ValidateObjectFunc,
@@ -267,7 +273,7 @@ func (r *mem) Create(
 	return runtimeObject, nil
 }
 
-func (r *mem) Update(
+func (r *cfg) Update(
 	ctx context.Context,
 	name string,
 	objInfo rest.UpdatedObjectInfo,
@@ -363,7 +369,7 @@ func (r *mem) Update(
 
 }
 
-func (r *mem) Delete(
+func (r *cfg) Delete(
 	ctx context.Context,
 	name string,
 	deleteValidation rest.ValidateObjectFunc,
@@ -420,7 +426,7 @@ func (r *mem) Delete(
 	return obj, true, nil
 }
 
-func (r *mem) DeleteCollection(
+func (r *cfg) DeleteCollection(
 	ctx context.Context,
 	deleteValidation rest.ValidateObjectFunc,
 	options *metav1.DeleteOptions,
@@ -456,7 +462,7 @@ func (r *mem) DeleteCollection(
 	return newListObj, nil
 }
 
-func (r *mem) Watch(
+func (r *cfg) Watch(
 	ctx context.Context,
 	options *metainternalversion.ListOptions,
 ) (watch.Interface, error) {

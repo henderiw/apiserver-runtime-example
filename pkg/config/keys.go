@@ -25,7 +25,7 @@ import (
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 )
 
-func (r *mem) getKey(ctx context.Context, name string) (store.Key, error) {
+func (r *cfg) getKey(ctx context.Context, name string) (store.Key, error) {
 	ns, namespaced := genericapirequest.NamespaceFrom(ctx)
 	if namespaced != r.isNamespaced {
 		return store.Key{}, fmt.Errorf("namespace mismatch got %t, want %t", namespaced, r.isNamespaced)
@@ -50,7 +50,7 @@ func getTargetKey(labels map[string]string) (store.Key, error) {
 	return store.Key{NamespacedName: types.NamespacedName{Namespace: targetNamespace, Name: targetName}}, nil
 }
 
-func (r *mem) getKeys(ctx context.Context, obj runtime.Object) (store.Key, store.Key, error) {
+func (r *cfg) getKeys(ctx context.Context, obj runtime.Object) (store.Key, store.Key, error) {
 	accessor, err := meta.Accessor(obj)
 	if err != nil {
 		return store.Key{}, store.Key{}, err

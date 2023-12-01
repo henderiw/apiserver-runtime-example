@@ -119,7 +119,7 @@ func main() {
 	go func() {
 		if err := builder.APIServer.
 			WithOpenAPIDefinitions("Config", "v0.0.0", openapi.GetOpenAPIDefinitions).
-			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(&v1alpha1.Config{}, configStore, targetStore)).
+			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
 			WithoutEtcd().
 			WithLocalDebugExtension().
 			Execute(); err != nil {
