@@ -7,11 +7,11 @@ metadata:
     targetName: dev1
     targetNamespace: default
 spec:
+  priority: 10
   config:
-    interface:
+  - path: /
+    value:
+      interface:
       - name: "system0"
         admin-state: "enable"
-        description: "k8s-system0"
-      - name: "lo0"
-        admin-state: "enable"
-        description: "k8s-lo0"
+        description: "k8s-system0-dummy"
