@@ -264,10 +264,10 @@ func (r *cfg) Create(
 	if err != nil {
 		return nil, apierrors.NewInternalError(errors.Wrap(err, "target not found"))
 	}
-	if err := tctx.Create(ctx, targetKey, newObj); err != nil {
+	if err := tctx.SetIntent(ctx, targetKey, newObj); err != nil {
 		return nil, apierrors.NewInternalError(err)
 	}
-	log.Info("create sdc succeeded")
+	log.Info("create intent succeeded")
 
 	if err := r.store.Create(ctx, key, runtimeObject); err != nil {
 		return nil, apierrors.NewInternalError(err)
@@ -352,7 +352,7 @@ func (r *cfg) Update(
 	log.Info("update", "obj", string(newConfig.Spec.Config[0].Value.Raw))
 
 	if !isCreate {
-		if err := tctx.Update(ctx, targetKey, oldConfig, newConfig); err != nil {
+		if err := tctx.SetIntent(ctx, targetKey, newConfig); err != nil {
 			return nil, false, apierrors.NewInternalError(err)
 		}
 		if err := r.store.Update(ctx, key, newObj); err != nil {
@@ -364,7 +364,7 @@ func (r *cfg) Update(
 		})
 		return newObj, false, nil
 	}
-	if err := tctx.Create(ctx, targetKey, newConfig); err != nil {
+	if err := tctx.SetIntent(ctx, targetKey, newConfig); err != nil {
 		return nil, false, apierrors.NewInternalError(err)
 	}
 	if err := r.store.Create(ctx, key, newObj); err != nil {
@@ -419,10 +419,10 @@ func (r *cfg) Delete(
 	if err != nil {
 		return nil, false, apierrors.NewInternalError(err)
 	}
-	if err := tctx.Delete(ctx, targetKey, newConfig); err != nil {
+	if err := tctx.DeleteIntent(ctx, targetKey, newConfig); err != nil {
 		return nil, false, apierrors.NewInternalError(err)
 	}
-	log.Info("delete sdc succeeded")
+	log.Info("delete intent succeeded")
 
 	if err := r.store.Delete(ctx, key); err != nil {
 		return nil, false, apierrors.NewInternalError(err)

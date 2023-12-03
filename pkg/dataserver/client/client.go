@@ -143,6 +143,14 @@ func (r *client) Watch(ctx context.Context, in *sdcpb.WatchRequest, opts ...grpc
 	return r.dsclient.Watch(ctx, in, opts...)
 }
 
+func (r *client) GetIntent(ctx context.Context, in *sdcpb.GetIntentRequest, opts ...grpc.CallOption) (*sdcpb.GetIntentResponse, error) {
+	return r.dsclient.GetIntent(ctx, in, opts...)
+}
+
+func (r *client) SetIntent(ctx context.Context, in *sdcpb.SetIntentRequest, opts ...grpc.CallOption) (*sdcpb.SetIntentResponse, error) {
+	return r.dsclient.SetIntent(ctx, in, opts...)
+}
+
 /*
 func (r *client) getGRPCOpts() ([]grpc.DialOption, error) {
 	var opts []grpc.DialOption

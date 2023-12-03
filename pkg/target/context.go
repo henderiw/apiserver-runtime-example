@@ -17,9 +17,8 @@ package target
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	api "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
+	configv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
 	"github.com/henderiw/apiserver-runtime-example/pkg/store"
 	"github.com/henderiw/logger/log"
@@ -32,14 +31,15 @@ type Context struct {
 	Client    dsclient.Client
 }
 
-func getGVKNSN(obj *api.Config) string {
+func getGVKNSN(obj *configv1alpha1.Config) string {
 	if obj.Namespace == "" {
 		return fmt.Sprintf("%s.%s.%s", obj.APIVersion, obj.Kind, obj.Name)
 	}
 	return fmt.Sprintf("%s.%s.%s.%s", obj.APIVersion, obj.Kind, obj.Namespace, obj.Name)
 }
 
-func getCandidateDatastore(obj *api.Config) *sdcpb.DataStore {
+/*
+func getCandidateDatastore(obj *configv1alpha1.Config) *sdcpb.DataStore {
 	return &sdcpb.DataStore{
 		Type:     sdcpb.Type_CANDIDATE,
 		Name:     getGVKNSN(obj),
@@ -47,6 +47,7 @@ func getCandidateDatastore(obj *api.Config) *sdcpb.DataStore {
 		Priority: int32(obj.Spec.Priority),
 	}
 }
+*/
 
 func (r *Context) Validate(ctx context.Context, key store.Key) error {
 	if r.Client == nil {
@@ -58,7 +59,63 @@ func (r *Context) Validate(ctx context.Context, key store.Key) error {
 	return nil
 }
 
-func (r *Context) Create(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) SetIntent(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
+	log := log.FromContext(ctx).With("target", key.String(), "intent", getGVKNSN(obj))
+	if err := r.Validate(ctx, key); err != nil {
+		return err
+	}
+	update := make([]*sdcpb.Update, 0, len(obj.Spec.Config))
+	for _, config := range obj.Spec.Config {
+		path, err := ParsePath(config.Path)
+		if err != nil {
+			return fmt.Errorf("create data failed for target %s, path %s invalid", key.String(), config.Path)
+		}
+		update = append(update, &sdcpb.Update{
+			Path: path,
+			Value: &sdcpb.TypedValue{
+				Value: &sdcpb.TypedValue_JsonVal{
+					JsonVal: config.Value.Raw,
+				},
+			},
+		})
+	}
+
+	rsp, err := r.Client.SetIntent(ctx, &sdcpb.SetIntentRequest{
+		Name:     key.String(),
+		Intent:   getGVKNSN(obj),
+		Priority: int32(obj.Spec.Priority),
+		Update:   update,
+	})
+	if err != nil {
+		log.Info("set intent failed", "error", err.Error())
+		return err
+	}
+	log.Info("set intent succeeded", "rsp", prototext.Format(rsp))
+	return nil
+}
+
+func (r *Context) DeleteIntent(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
+	log := log.FromContext(ctx).With("target", key.String(), "intent", getGVKNSN(obj))
+	if err := r.Validate(ctx, key); err != nil {
+		return err
+	}
+
+	rsp, err := r.Client.SetIntent(ctx, &sdcpb.SetIntentRequest{
+		Name:     key.String(),
+		Intent:   getGVKNSN(obj),
+		Priority: int32(obj.Spec.Priority),
+		Delete:   true,
+	})
+	if err != nil {
+		log.Info("delete intent failed", "error", err.Error())
+		return err
+	}
+	log.Info("delete intent succeeded", "rsp", prototext.Format(rsp))
+	return nil
+}
+
+/*
+func (r *Context) Create(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	if err := r.Validate(ctx, key); err != nil {
 		return err
 	}
@@ -75,7 +132,7 @@ func (r *Context) Create(ctx context.Context, key store.Key, obj *api.Config) er
 }
 
 // TODO -> get old and new obj
-func (r *Context) Update(ctx context.Context, key store.Key, oldObj *api.Config, newObj *api.Config) error {
+func (r *Context) Update(ctx context.Context, key store.Key, oldObj *configv1alpha1.Config, newObj *configv1alpha1.Config) error {
 	if err := r.Validate(ctx, key); err != nil {
 		return err
 	}
@@ -92,7 +149,7 @@ func (r *Context) Update(ctx context.Context, key store.Key, oldObj *api.Config,
 	return nil
 }
 
-func (r *Context) Delete(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) Delete(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	if err := r.Validate(ctx, key); err != nil {
 		return err
 	}
@@ -108,7 +165,7 @@ func (r *Context) Delete(ctx context.Context, key store.Key, obj *api.Config) er
 	return nil
 }
 
-func (r *Context) CreateCandidate(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) CreateCandidate(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx)
 	rsp, err := r.Client.CreateDataStore(ctx, &sdcpb.CreateDataStoreRequest{
 		Name:      key.String(),
@@ -125,7 +182,7 @@ func (r *Context) CreateCandidate(ctx context.Context, key store.Key, obj *api.C
 	return nil
 }
 
-func (r *Context) DeleteCandidate(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) DeleteCandidate(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx)
 	rsp, err := r.Client.DeleteDataStore(ctx, &sdcpb.DeleteDataStoreRequest{
 		Name:      key.String(),
@@ -142,7 +199,7 @@ func (r *Context) DeleteCandidate(ctx context.Context, key store.Key, obj *api.C
 	return nil
 }
 
-func (r *Context) CreateData(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) CreateData(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx)
 
 	req := &sdcpb.SetDataRequest{
@@ -176,7 +233,7 @@ func (r *Context) CreateData(ctx context.Context, key store.Key, obj *api.Config
 }
 
 // TODO rework after the intent api changed
-func (r *Context) UpdateData(ctx context.Context, key store.Key, oldObj *api.Config, newObj *api.Config) error {
+func (r *Context) UpdateData(ctx context.Context, key store.Key, oldObj *configv1alpha1.Config, newObj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx)
 
 	req := &sdcpb.SetDataRequest{
@@ -211,7 +268,7 @@ func (r *Context) UpdateData(ctx context.Context, key store.Key, oldObj *api.Con
 
 // TODO delete
 // TODO rework after the intent api changed
-func (r *Context) DeleteData(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) DeleteData(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx)
 
 	req := &sdcpb.SetDataRequest{
@@ -231,7 +288,7 @@ func (r *Context) DeleteData(ctx context.Context, key store.Key, obj *api.Config
 	return nil
 }
 
-func (r *Context) Commit(ctx context.Context, key store.Key, obj *api.Config) error {
+func (r *Context) Commit(ctx context.Context, key store.Key, obj *configv1alpha1.Config) error {
 	log := log.FromContext(ctx).With("key", key.String())
 	rsp, err := r.Client.Commit(ctx, &sdcpb.CommitRequest{
 		Name:      key.String(),
@@ -248,3 +305,4 @@ func (r *Context) Commit(ctx context.Context, key store.Key, obj *api.Config) er
 	log.Info("commit succeeded", "rsp", prototext.Format(rsp))
 	return nil
 }
+*/

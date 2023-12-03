@@ -28,8 +28,8 @@ import (
 	"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/scheme"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/openapi"
+	"github.com/henderiw/apiserver-runtime-example/pkg/config"
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
-	"github.com/henderiw/apiserver-runtime-example/pkg/filepath"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/ctrlconfig"
@@ -118,8 +118,8 @@ func main() {
 	go func() {
 		if err := builder.APIServer.
 			WithOpenAPIDefinitions("Config", "v0.0.0", openapi.GetOpenAPIDefinitions).
-			WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
-			//WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
+			//WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
+			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
 			WithoutEtcd().
 			WithLocalDebugExtension().
 			Execute(); err != nil {
