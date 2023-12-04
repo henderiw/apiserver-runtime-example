@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/watch"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -158,6 +159,10 @@ func (f *filepathREST) Create(
 	if err != nil {
 		return nil, err
 	}
+
+	// setting a uid for the element
+	accessor.SetUID(uuid.NewUUID())
+
 	filename := f.objectFileName(ctx, accessor.GetName())
 
 	if exists(filename) {
