@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memory
+package file
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"reflect"
-	"sync"
 
 	"github.com/henderiw/apiserver-runtime-example/pkg/store"
 	"github.com/henderiw/apiserver-runtime-example/pkg/store/watch"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/henderiw/logger/log"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -30,45 +32,46 @@ const (
 	NotFound = "not found"
 )
 
-
-
-func NewStore[T1 any]() store.Storer[T1] {
-	return &mem[T1]{
-		db:       map[store.Key]T1{},
-		watchers: watch.NewWatchers[T1](32),
-	}
+type Config struct {
+	GroupResource schema.GroupResource
+	RootPath      string
+	Codec         runtime.Codec
+	NewFunc       func() runtime.Object
 }
 
-type mem[T1 any] struct {
-	m        sync.RWMutex
-	db       map[store.Key]T1
-	watchers *watch.Watchers[T1]
+func NewStore[T1 any](cfg *Config) (store.Storer[T1], error) {
+	objRootPath := filepath.Join(cfg.RootPath, cfg.GroupResource.Group, cfg.GroupResource.Resource)
+	if err := ensureDir(objRootPath); err != nil {
+		return nil, fmt.Errorf("unable to write data dir: %s", err)
+	}
+	return &file[T1]{
+		objRootPath: objRootPath,
+		codec:       cfg.Codec,
+		newFunc:     cfg.NewFunc,
+		watchers:    watch.NewWatchers[T1](32),
+	}, nil
+}
+
+type file[T1 any] struct {
+	objRootPath string
+	codec       runtime.Codec
+	newFunc     func() runtime.Object
+	watchers    *watch.Watchers[T1]
 }
 
 // Get return the type
-func (r *mem[T1]) Get(ctx context.Context, key store.Key) (T1, error) {
-	r.m.RLock()
-	defer r.m.RUnlock()
-
-	x, ok := r.db[key]
-	if !ok {
-		return *new(T1), fmt.Errorf("%s, nsn: %s", NotFound, key.String())
-	}
-	return x, nil
+func (r *file[T1]) Get(ctx context.Context, key store.Key) (T1, error) {
+	return r.readFile(ctx, key)
 }
 
-func (r *mem[T1]) List(ctx context.Context, visitorFunc func(ctx context.Context, key store.Key, obj T1)) {
-	r.m.RLock()
-	defer r.m.RUnlock()
-
-	for key, obj := range r.db {
-		if visitorFunc != nil {
-			visitorFunc(ctx, key, obj)
-		}
+func (r *file[T1]) List(ctx context.Context, visitorFunc func(ctx context.Context, key store.Key, obj T1)) {
+	log := log.FromContext(ctx)
+	if err := r.visitDir(ctx, visitorFunc); err != nil {
+		log.Error("cannot list visiting dir failed", "error", err.Error())
 	}
 }
 
-func (r *mem[T1]) Create(ctx context.Context, key store.Key, data T1) error {
+func (r *file[T1]) Create(ctx context.Context, key store.Key, data T1) error {
 	// if an error is returned the entry already exists
 	if _, err := r.Get(ctx, key); err == nil {
 		return fmt.Errorf("duplicate entry %v", key.String())
@@ -85,7 +88,7 @@ func (r *mem[T1]) Create(ctx context.Context, key store.Key, data T1) error {
 }
 
 // Upsert creates or updates the entry in the cache
-func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
+func (r *file[T1]) Update(ctx context.Context, key store.Key, data T1) error {
 	exists := true
 	oldd, err := r.Get(ctx, key)
 	if err != nil {
@@ -93,7 +96,9 @@ func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
 	}
 
 	// update the cache before calling the callback since the cb fn will use this data
-	r.update(ctx, key, data)
+	if err := r.update(ctx, key, data); err != nil {
+
+	}
 
 	// // notify watchers based on the fact the data got modified or not
 	if exists {
@@ -112,20 +117,16 @@ func (r *mem[T1]) Update(ctx context.Context, key store.Key, data T1) error {
 	return nil
 }
 
-func (r *mem[T1]) update(ctx context.Context, key store.Key, newd T1) {
-	r.m.Lock()
-	defer r.m.Unlock()
-	r.db[key] = newd
+func (r *file[T1]) update(ctx context.Context, key store.Key, newd T1) error {
+	return r.writeFile(ctx, key, newd)
 }
 
-func (r *mem[T1]) delete(ctx context.Context, key store.Key) {
-	r.m.Lock()
-	defer r.m.Unlock()
-	delete(r.db, key)
+func (r *file[T1]) delete(ctx context.Context, key store.Key) error {
+	return r.deleteFile(ctx, key)
 }
 
 // Delete deletes the entry in the cache
-func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
+func (r *file[T1]) Delete(ctx context.Context, key store.Key) error {
 	// only if an exisitng object gets deleted we
 	// call the registered callbacks
 	exists := true
@@ -145,12 +146,10 @@ func (r *mem[T1]) Delete(ctx context.Context, key store.Key) error {
 	return nil
 }
 
-func (r *mem[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
-	//r.m.Lock()
-	//defer r.m.Unlock()
-
+func (r *file[T1]) Watch(ctx context.Context) (watch.Interface[T1], error) {
+	// lock is not required here
 	log := log.FromContext(ctx)
-	log.Info("watch memory store")
+	log.Info("watch file store")
 	if r.watchers.IsExhausted() {
 		return nil, fmt.Errorf("cannot allocate watcher, out of resources")
 	}

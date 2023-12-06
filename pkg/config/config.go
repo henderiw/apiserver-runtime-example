@@ -62,9 +62,6 @@ var _ rest.Storage = &cfg{}
 
 func NewProvider(ctx context.Context, obj resource.Object, store store.Storer[runtime.Object], targetStore store.Storer[target.Context]) builderrest.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, getter generic.RESTOptionsGetter) (rest.Storage, error) {
-
-		fmt.Println("schema", *scheme)
-
 		gr := obj.GetGroupVersionResource().GroupResource()
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
 			StorageMediaType:  runtime.ContentTypeJSON,
@@ -94,7 +91,6 @@ func NewConfigREST(
 	store store.Storer[runtime.Object],
 	targetStore store.Storer[target.Context],
 	gr schema.GroupResource,
-	//gvk schema.GroupVersionKind,
 	codec runtime.Codec,
 	isNamespaced bool,
 	newFunc func() runtime.Object,

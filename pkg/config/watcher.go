@@ -62,6 +62,8 @@ WATCH:
 				name = e.Object.DataStore.Name
 			}
 			log.Info("target changed", "eventType", e.Type.String(), "key", name)
+
+			// TODO apply the config
 		}
 	}
 }
