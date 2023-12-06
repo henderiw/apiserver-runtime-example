@@ -17,6 +17,7 @@ package target
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configv1alpha1 "github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
@@ -32,10 +33,11 @@ type Context struct {
 }
 
 func getGVKNSN(obj *configv1alpha1.Config) string {
+	apiVersion := strings.ReplaceAll(obj.APIVersion, "/", "@")
 	if obj.Namespace == "" {
-		return fmt.Sprintf("%s.%s.%s", obj.APIVersion, obj.Kind, obj.Name)
+		return fmt.Sprintf("%s.%s.%s", apiVersion, obj.Kind, obj.Name)
 	}
-	return fmt.Sprintf("%s.%s.%s.%s", obj.APIVersion, obj.Kind, obj.Namespace, obj.Name)
+	return fmt.Sprintf("%s.%s.%s.%s", apiVersion, obj.Kind, obj.Namespace, obj.Name)
 }
 
 /*
@@ -100,12 +102,15 @@ func (r *Context) DeleteIntent(ctx context.Context, key store.Key, obj *configv1
 		return err
 	}
 
-	rsp, err := r.Client.SetIntent(ctx, &sdcpb.SetIntentRequest{
+	req := &sdcpb.SetIntentRequest{
 		Name:     key.String(),
 		Intent:   getGVKNSN(obj),
 		Priority: int32(obj.Spec.Priority),
 		Delete:   true,
-	})
+	}
+	log.Info("delete intent", "req", req)
+
+	rsp, err := r.Client.SetIntent(ctx, req)
 	if err != nil {
 		log.Info("delete intent failed", "error", err.Error())
 		return err

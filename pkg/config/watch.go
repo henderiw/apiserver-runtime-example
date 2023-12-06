@@ -65,6 +65,7 @@ func (r *watchers) Del(id int) {
 func (r *watchers) NotifyWatchers(ev watch.Event) {
 	r.m.RLock()
 	defer r.m.RUnlock()
+	
 	for _, w := range r.watchers {
 		w.resultCh <- ev
 	}

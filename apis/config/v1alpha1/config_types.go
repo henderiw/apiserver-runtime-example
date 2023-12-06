@@ -27,7 +27,7 @@ type ConfigSpec struct {
 	// will follow
 	Lifecycle Lifecycle `json:"lifecycle,omitempty" yaml:"lifecycle,omitempty"`
 	// Priority defines the priority of this config
-	Priority int `json:"priority,omitempty" yaml:"priroity,omitempty"`
+	Priority int32 `json:"priority,omitempty" yaml:"priroity,omitempty"`
 	// Config defines the configuration to be applied to a target device
 	//+kubebuilder:pruning:PreserveUnknownFields
 	Config []ConfigBlob `json:"config" yaml:"config"`

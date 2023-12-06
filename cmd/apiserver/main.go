@@ -117,7 +117,7 @@ func main() {
 	}
 	go func() {
 		if err := builder.APIServer.
-			WithOpenAPIDefinitions("Config", "v0.0.0", openapi.GetOpenAPIDefinitions).
+			WithOpenAPIDefinitions("config", "v0.0.0", openapi.GetOpenAPIDefinitions).
 			//WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
 			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
 			WithoutEtcd().

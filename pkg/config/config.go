@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -233,7 +234,7 @@ func (r *cfg) List(
 
 func (r *cfg) Create(
 	ctx context.Context,
-	runtimeObject runtime.Object,
+	obj runtime.Object,
 	createValidation rest.ValidateObjectFunc,
 	options *metav1.CreateOptions,
 ) (runtime.Object, error) {
@@ -246,16 +247,23 @@ func (r *cfg) Create(
 	log := log.FromContext(ctx)
 	//log.Info("get", "ctx", ctx, "typeMeta", options.TypeMeta, "obj", runtimeObject)
 
-	key, targetKey, err := r.getKeys(ctx, runtimeObject)
+	key, targetKey, err := r.getKeys(ctx, obj)
 	if err != nil {
 		return nil, apierrors.NewBadRequest(err.Error())
 	}
 	log.Info("create", "key", key.String(), "targetKey", targetKey)
 
+	// setting a uid for the element
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return nil, apierrors.NewBadRequest(err.Error())
+	}
+	accessor.SetUID(uuid.NewUUID())
+
 	// get the data of the runtime object
-	newObj, ok := runtimeObject.(*api.Config)
+	newObj, ok := obj.(*api.Config)
 	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected Config object, got %T", runtimeObject))
+		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected Config object, got %T", obj))
 	}
 	log.Info("create", "obj", string(newObj.Spec.Config[0].Value.Raw))
 
@@ -269,7 +277,7 @@ func (r *cfg) Create(
 	}
 	log.Info("create intent succeeded")
 
-	if err := r.store.Create(ctx, key, runtimeObject); err != nil {
+	if err := r.store.Create(ctx, key, obj); err != nil {
 		return nil, apierrors.NewInternalError(err)
 	}
 
@@ -277,7 +285,7 @@ func (r *cfg) Create(
 		Type:   watch.Added,
 		Object: newObj,
 	})
-	return runtimeObject, nil
+	return obj, nil
 }
 
 func (r *cfg) Update(
@@ -427,10 +435,12 @@ func (r *cfg) Delete(
 	if err := r.store.Delete(ctx, key); err != nil {
 		return nil, false, apierrors.NewInternalError(err)
 	}
+	log.Info("delete intent succeeded almost done", "watchers", r.watchers.Len())
 	r.watchers.NotifyWatchers(watch.Event{
-		Type:   watch.Modified,
+		Type:   watch.Deleted,
 		Object: obj,
 	})
+	log.Info("delete intent succeeded done")
 
 	return obj, true, nil
 }

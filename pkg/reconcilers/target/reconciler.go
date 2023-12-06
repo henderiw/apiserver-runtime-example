@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 func init() {
@@ -66,8 +65,8 @@ func (r *reconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, c i
 	return nil, ctrl.NewControllerManagedBy(mgr).
 		Named("TargetDataStoreController").
 		For(&invv1alpha1.Target{}).
-		Watches(&source.Kind{Type: &invv1alpha1.TargetConnectionProfile{}}, &targetConnProfileEventHandler{client: mgr.GetClient()}).
-		Watches(&source.Kind{Type: &invv1alpha1.TargetSyncProfile{}}, &targetSyncProfileEventHandler{client: mgr.GetClient()}).
+		Watches(&invv1alpha1.TargetConnectionProfile{}, &targetConnProfileEventHandler{client: mgr.GetClient()}).
+		Watches(&invv1alpha1.TargetSyncProfile{}, &targetSyncProfileEventHandler{client: mgr.GetClient()}).
 		Complete(r)
 }
 
@@ -127,8 +126,10 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			log.Info("deleting datastore", "key", key.String())
 			rsp, err := targetCtx.Client.DeleteDataStore(ctx, &sdcpb.DeleteDataStoreRequest{Name: key.String()})
 			if err != nil {
-				log.Error(err, "cannot delete datastore")
-				return ctrl.Result{Requeue: true}, err
+				if !strings.Contains(err.Error(), "unknown datastore") {
+					log.Error(err, "cannot delete datastore")
+					return ctrl.Result{Requeue: true}, err
+				}
 			}
 			log.Info("delete datastore succeeded", "resp", prototext.Format(rsp))
 		}
@@ -258,21 +259,25 @@ func (r *reconciler) updateDataStore(ctx context.Context, cr *invv1alpha1.Target
 		log.Info("datastore does not exist")
 		// datastore does not exist
 	} else {
-
 		// datastore exists -< validate changes and if so delete the datastore
-		if r.validateDataStoreChanges(ctx, req, getRsp) {
+		if r.isDataStoreChanged(ctx, req, getRsp) {
 			log.Info("datastore exist -> changed")
 			rsp, err := targetCtx.Client.DeleteDataStore(ctx, &sdcpb.DeleteDataStoreRequest{Name: key.String()})
 			if err != nil {
-				log.Error(err, "cannot delete datstore in dataserver")
-				return err
+				if !strings.Contains(err.Error(), "unknown datastore") {
+					log.Error(err, "cannot delete datstore in dataserver")
+					return err
+				}
+				log.Info("delete datastore did not exist", "resp", prototext.Format(rsp))
+			} else {
+				log.Info("delete datastore succeeded", "resp", prototext.Format(rsp))
 			}
-			log.Info("delete datastore succeeded", "resp", prototext.Format(rsp))
 		} else {
 			log.Info("datastore exist -> no change")
 			return nil
 		}
 	}
+	log.Info("create datastore", "params", req)
 	// datastore does not exist -> create datastore
 	rsp, err := targetCtx.Client.CreateDataStore(ctx, req)
 	if err != nil {
@@ -288,39 +293,46 @@ func (r *reconciler) updateDataStore(ctx context.Context, cr *invv1alpha1.Target
 	return nil
 }
 
-func (r *reconciler) validateDataStoreChanges(ctx context.Context, req *sdcpb.CreateDataStoreRequest, rsp *sdcpb.GetDataStoreResponse) bool {
+func (r *reconciler) isDataStoreChanged(ctx context.Context, req *sdcpb.CreateDataStoreRequest, rsp *sdcpb.GetDataStoreResponse) bool {
 	log := log.FromContext(ctx)
 	//key := store.GetNSNKey(types.NamespacedName{Namespace: cr.GetNamespace(), Name: cr.GetName()})
 	if req.Name != rsp.Name {
+		log.Info("validateDataStoreChanges", "reqName", req.Name, "rspName", rsp.Name)
 		return true
 	}
 
 	if req.Schema.Name != rsp.Schema.Name ||
 		req.Schema.Vendor != rsp.Schema.Vendor ||
 		req.Schema.Version != rsp.Schema.Version {
+		log.Info("validateDataStoreChanges", "reqSchema", req.Schema, "rspSchema", rsp.Schema)
 		return true
 	}
 	if req.Target.Type != rsp.Target.Type ||
 		req.Target.Address != rsp.Target.Address {
+		log.Info("validateDataStoreChanges", "reqTarget", req.Target, "rspTarget", rsp.Target)
 		return true
 	}
 
 	log.Info("validateDataStoreChanges", "reqCreds", req.Target.Credentials, "rspCreds", rsp.Target.Credentials)
-	if rsp.Target.Credentials == nil {
-		return true
-	} 
-	if req.Target.Credentials.Username != rsp.Target.Credentials.Username ||
-		req.Target.Credentials.Password != rsp.Target.Credentials.Password {
-		return true
-	}
+	/*
+		if rsp.Target.Credentials == nil {
+			return true
+		}
+		if req.Target.Credentials.Username != rsp.Target.Credentials.Username ||
+			req.Target.Credentials.Password != rsp.Target.Credentials.Password {
+			return true
+		}
+	*/
 
 	log.Info("validateDataStoreChanges", "reqTLS", req.Target.Tls, "rspTLS", rsp.Target.Tls)
-	if req.Target.Tls.Ca != rsp.Target.Tls.Ca ||
-		req.Target.Tls.Cert != rsp.Target.Tls.Cert ||
-		req.Target.Tls.Key != rsp.Target.Tls.Key ||
-		req.Target.Tls.SkipVerify != rsp.Target.Tls.SkipVerify {
-		return true
-	}
+	/*
+		if req.Target.Tls.Ca != rsp.Target.Tls.Ca ||
+			req.Target.Tls.Cert != rsp.Target.Tls.Cert ||
+			req.Target.Tls.Key != rsp.Target.Tls.Key ||
+			req.Target.Tls.SkipVerify != rsp.Target.Tls.SkipVerify {
+			return true
+		}
+	*/
 	return false
 }
 
@@ -394,9 +406,9 @@ func (r *reconciler) getCreateDataStoreRequest(ctx context.Context, cr *invv1alp
 		},
 		Sync: invv1alpha1.GetSyncProfile(syncProfile),
 		Schema: &sdcpb.Schema{
-			Name:    cr.Spec.Provider.Name,    // TODO should come from the target profile
-			Vendor:  cr.Spec.Provider.Vendor,  // TODO should come from the target profile
-			Version: cr.Spec.Provider.Version, // TODO should come from the target profile
+			Name:    cr.Spec.Provider.Name,
+			Vendor:  cr.Spec.Provider.Vendor,
+			Version: cr.Spec.Provider.Version,
 		},
 	}, nil
 }

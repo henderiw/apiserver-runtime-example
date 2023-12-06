@@ -1,6 +1,6 @@
 VERSION ?= latest
 REGISTRY ?= europe-docker.pkg.dev/srlinux/eu.gcr.io
-PROJECT ?= capis
+PROJECT ?= capis-x86
 IMG ?= $(REGISTRY)/${PROJECT}:$(VERSION)
 
 REPO = github.com/henderiw/apiserver-runtime-example

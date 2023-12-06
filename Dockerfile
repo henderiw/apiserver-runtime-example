@@ -31,8 +31,18 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ca
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:nonroot
 FROM alpine:latest
+RUN apk add --update && \
+    apk add --no-cache openssh && \
+    apk add curl && \
+    apk add tcpdump && \
+    apk add iperf3 &&\
+    apk add netcat-openbsd && \
+    apk add ethtool && \
+    apk add bonding && \
+    rm -rf /tmp/*/var/cache/apk/*
+RUN curl -sL https://get-gnmic.kmrd.dev | sh
 WORKDIR /
 COPY --from=builder /workspace/capis .
-USER 65532:65532
+#USER 65532:65532
 
 ENTRYPOINT ["/capis"]
