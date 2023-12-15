@@ -28,8 +28,8 @@ import (
 	"github.com/henderiw/apiserver-runtime-example/apis/config/v1alpha1"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/clientset/versioned/scheme"
 	"github.com/henderiw/apiserver-runtime-example/apis/generated/openapi"
-	"github.com/henderiw/apiserver-runtime-example/pkg/config"
 	dsclient "github.com/henderiw/apiserver-runtime-example/pkg/dataserver/client"
+	"github.com/henderiw/apiserver-runtime-example/pkg/filepath"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/context/dsctx"
 	"github.com/henderiw/apiserver-runtime-example/pkg/reconcilers/ctrlconfig"
@@ -41,6 +41,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	endpointsopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth" // register auth plugins
 	"k8s.io/component-base/logs"
@@ -77,12 +79,12 @@ func main() {
 	// TODO dataServer -> this should be decoupled in a scaled out environment
 	time.Sleep(5 * time.Second)
 	dataServerStore := memstore.NewStore[dsctx.Context]()
-	dsCtx, err := createDataServer(ctx, dataServerStore)
-	if err != nil {
-		log.Error("cannot create data server", "error", err.Error())
-		os.Exit(1)
-	}
-	dataServerStore.Create(ctx, store.GetNameKey(dataServerAddress), *dsCtx)
+	// dsCtx, err := createDataServer(ctx, dataServerStore)
+	// if err != nil {
+	// 	log.Error("cannot create data server", "error", err.Error())
+	// 	os.Exit(1)
+	// }
+	// dataServerStore.Create(ctx, store.GetNameKey(dataServerAddress), *dsCtx)
 
 	// setup controllers
 	runScheme := runtime.NewScheme()
@@ -116,13 +118,30 @@ func main() {
 		}
 	}
 	go func() {
-		if err := builder.APIServer.
-			WithOpenAPIDefinitions("config", "v0.0.0", openapi.GetOpenAPIDefinitions).
-			//WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
-			WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
+		serverConfig := genericapiserver.NewRecommendedConfig(scheme.Codecs)
+
+		serverConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(openapi.GetOpenAPIDefinitions, endpointsopenapi.NewDefinitionNamer(scheme.Scheme))
+		serverConfig.OpenAPIConfig.Info.Title = "config"
+		serverConfig.OpenAPIConfig.Info.Version = "v0.0.0"
+
+		serverConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openapi.GetOpenAPIDefinitions, endpointsopenapi.NewDefinitionNamer(scheme.Scheme))
+		serverConfig.OpenAPIV3Config.Info.Title = "config"
+		serverConfig.OpenAPIV3Config.Info.Version = "v0.0.0"
+
+		apiserv := builder.APIServer.
+			//WithOpenAPIDefinitions("config", "v0.0.0", openapi.GetOpenAPIDefinitions).
+			WithResourceAndHandler(&v1alpha1.Config{}, filepath.NewJSONFilepathStorageProvider(&v1alpha1.Config{}, "data")).
+			//WithResourceAndHandler(&v1alpha1.Config{}, config.NewProvider(ctx, &v1alpha1.Config{}, configStore, targetStore)).
+			WithConfigFns(func(config *genericapiserver.RecommendedConfig) *genericapiserver.RecommendedConfig {
+				config.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openapi.GetOpenAPIDefinitions, endpointsopenapi.NewDefinitionNamer(scheme.Scheme))
+				return config
+			}).
 			WithoutEtcd().
-			WithLocalDebugExtension().
-			Execute(); err != nil {
+			WithLocalDebugExtension()
+
+		err = apiserv.Execute()
+
+		if err != nil {
 			log.Info("cannot start caas")
 		}
 	}()
